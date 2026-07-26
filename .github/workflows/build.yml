@@ -1,4 +1,4 @@
-name: Build Android Test APK
+name: Build Android APKs
 
 on:
   push:
@@ -20,16 +20,21 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
-      - name: Grant Execute Permission for Gradle
-        run: chmod +x gradlew || true
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+      - name: Build Debug and Release APKs
+        run: gradle assembleDebug assembleRelease --stacktrace
 
-      - name: Upload Test APK Artifact
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: FlashShare-Test-APK
+          name: FlashShare-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlashShare-Release-APK
+          path: app/build/outputs/apk/release/app-release.apk

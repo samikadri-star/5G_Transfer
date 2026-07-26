@@ -29,7 +29,8 @@ android {
     val base64File = file("${rootDir}/debug.keystore.base64")
     if (!debugKeystoreFile.exists() && base64File.exists()) {
       try {
-        val decoded = Base64.getDecoder().decode(base64File.readText().trim())
+        val cleanBase64 = base64File.readText().replace("\r", "").replace("\n", "").trim()
+        val decoded = Base64.getDecoder().decode(cleanBase64)
         debugKeystoreFile.writeBytes(decoded)
       } catch (_: Exception) {}
     }
@@ -45,20 +46,22 @@ android {
         keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
         keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("STORE_PASSWORD")
       }
-    } else {
+    } else if (debugKeystoreFile.exists()) {
       create("release") {
-        storeFile = if (debugKeystoreFile.exists()) debugKeystoreFile else file("${rootDir}/debug.keystore")
+        storeFile = debugKeystoreFile
         storePassword = "android"
         keyAlias = "androiddebugkey"
         keyPassword = "android"
       }
     }
 
-    create("debugConfig") {
-      storeFile = if (debugKeystoreFile.exists()) debugKeystoreFile else file("${rootDir}/debug.keystore")
-      storePassword = "android"
-      keyAlias = "androiddebugkey"
-      keyPassword = "android"
+    if (debugKeystoreFile.exists()) {
+      create("debugConfig") {
+        storeFile = debugKeystoreFile
+        storePassword = "android"
+        keyAlias = "androiddebugkey"
+        keyPassword = "android"
+      }
     }
   }
 
@@ -67,9 +70,11 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
     }
-    debug { signingConfig = signingConfigs.getByName("debugConfig") }
+    debug {
+      signingConfig = signingConfigs.findByName("debugConfig") ?: signingConfigs.getByName("debug")
+    }
   }
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11

@@ -51,6 +51,7 @@ fun ReceiveScreen(
     modifier: Modifier = Modifier
 ) {
     val networkStatus: NetworkStatus by viewModel.networkStatus.collectAsState(initial = NetworkStatus())
+    val p2pStatusText: String by viewModel.p2pStatusText.collectAsState(initial = "جاهز")
     val transferProgress: TransferProgress by viewModel.transferProgress.collectAsState(initial = TransferProgress())
     val customSaveUri: String? by viewModel.customSaveUri.collectAsState(initial = null)
     val deviceName: String by viewModel.deviceName.collectAsState(initial = "هاتف")
@@ -75,6 +76,7 @@ fun ReceiveScreen(
         item {
             NetworkHeader(
                 networkStatus = networkStatus,
+                p2pStatusText = p2pStatusText,
                 onRefresh = { viewModel.transferEngine.updateNetworkInfo() }
             )
         }

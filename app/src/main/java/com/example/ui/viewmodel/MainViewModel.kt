@@ -15,10 +15,13 @@ import com.example.data.model.TransferProgress
 import com.example.data.model.TransferState
 import com.example.data.repository.TransferRepository
 import com.example.service.NotificationHelper
+import com.example.service.WifiP2pEngine
 import com.example.service.WifiTransferEngine
+import android.net.wifi.p2p.WifiP2pDevice
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -34,6 +37,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val context: Context get() = getApplication<Application>().applicationContext
     val repository = TransferRepository(context)
     val transferEngine = WifiTransferEngine(context)
+    val wifiP2pEngine = WifiP2pEngine(context)
     private val notificationHelper = NotificationHelper(context)
 
     private val _currentTab = MutableStateFlow(MainTab.SEND)
@@ -43,6 +47,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val selectedItems: StateFlow<List<SelectedItem>> = _selectedItems.asStateFlow()
 
     val networkStatus: StateFlow<NetworkStatus> = transferEngine.networkStatus
+    val nsdDiscoveredDevices: StateFlow<List<DiscoveredDevice>> = transferEngine.discoveredDevices
+    val p2pDiscoveredDevices: StateFlow<List<DiscoveredDevice>> = wifiP2pEngine.p2pDiscoveredDevices
+    val p2pStatusText: StateFlow<String> = wifiP2pEngine.p2pStatusText
+    val p2pPeers: StateFlow<List<WifiP2pDevice>> = wifiP2pEngine.p2pPeers
+    val isP2pConnected: StateFlow<Boolean> = wifiP2pEngine.isConnected
+
     val discoveredDevices: StateFlow<List<DiscoveredDevice>> = transferEngine.discoveredDevices
     val transferProgress: StateFlow<TransferProgress> = transferEngine.transferProgress
 
@@ -54,6 +64,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val autoAccept = repository.autoAccept
 
     init {
+        wifiP2pEngine.initP2p()
+
         viewModelScope.launch {
             transferProgress.collectLatest { progress ->
                 if (progress.state == TransferState.TRANSFERRING) {
@@ -76,6 +88,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _currentTab.value = tab
         if (tab == MainTab.RECEIVE) {
             startReceivingServer()
+            wifiP2pEngine.startDiscovery()
         } else if (tab == MainTab.SEND) {
             startDeviceDiscovery()
         } else {
@@ -85,6 +98,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun startDeviceDiscovery() {
         transferEngine.startDiscovery()
+        wifiP2pEngine.startDiscovery()
+    }
+
+    fun connectToP2pDevice(device: WifiP2pDevice) {
+        wifiP2pEngine.connectToDevice(device)
+    }
+
+    fun disconnectP2p() {
+        wifiP2pEngine.disconnectP2p()
     }
 
     fun startReceivingServer() {

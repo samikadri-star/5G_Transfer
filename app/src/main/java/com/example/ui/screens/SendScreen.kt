@@ -6,6 +6,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,6 +61,8 @@ fun SendScreen(
 ) {
     val selectedItems by viewModel.selectedItems.collectAsState()
     val discoveredDevices by viewModel.discoveredDevices.collectAsState()
+    val p2pPeers by viewModel.p2pPeers.collectAsState()
+    val p2pStatusText by viewModel.p2pStatusText.collectAsState()
     val networkStatus by viewModel.networkStatus.collectAsState()
     val transferProgress by viewModel.transferProgress.collectAsState()
 
@@ -136,7 +139,11 @@ fun SendScreen(
         item {
             NetworkHeader(
                 networkStatus = networkStatus,
-                onRefresh = { viewModel.transferEngine.updateNetworkInfo() }
+                p2pStatusText = p2pStatusText,
+                onRefresh = {
+                    viewModel.transferEngine.updateNetworkInfo()
+                    viewModel.startDeviceDiscovery()
+                }
             )
         }
 
@@ -222,7 +229,10 @@ fun SendScreen(
                         text = "مسح الكل",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { viewModel.clearSelectedItems() }
+                            .padding(4.dp)
                     )
                 }
             }
@@ -291,8 +301,13 @@ fun SendScreen(
             RadarScanner(
                 isScanning = true,
                 discoveredDevices = discoveredDevices,
+                p2pPeers = p2pPeers,
+                p2pStatusText = p2pStatusText,
                 onSelectDevice = { device ->
                     viewModel.sendSelectedItemsTo(device)
+                },
+                onSelectP2pDevice = { p2pDevice ->
+                    viewModel.connectToP2pDevice(p2pDevice)
                 }
             )
         }

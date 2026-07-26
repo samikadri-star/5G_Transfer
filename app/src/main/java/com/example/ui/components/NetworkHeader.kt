@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiTethering
@@ -41,6 +42,7 @@ import com.example.ui.theme.SuccessGreen
 @Composable
 fun NetworkHeader(
     networkStatus: NetworkStatus,
+    p2pStatusText: String? = null,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -48,7 +50,7 @@ fun NetworkHeader(
         modifier = modifier
             .fillMaxWidth()
             .padding(16.dp),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
@@ -61,100 +63,130 @@ fun NetworkHeader(
                     Brush.horizontalGradient(
                         colors = listOf(
                             MaterialTheme.colorScheme.surfaceVariant,
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                         )
                     )
                 )
                 .padding(16.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (networkStatus.is5GHz) Fast5GhzBadge.copy(alpha = 0.2f)
-                                else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (networkStatus.isHotspotActive) Icons.Default.WifiTethering else Icons.Default.Wifi,
-                            contentDescription = "شبكة الواي فاي",
-                            tint = if (networkStatus.is5GHz) Fast5GhzBadge else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = networkStatus.ssid,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (networkStatus.is5GHz) Fast5GhzBadge.copy(alpha = 0.25f)
+                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (networkStatus.isHotspotActive) Icons.Default.WifiTethering else Icons.Default.Wifi,
+                                contentDescription = "شبكة الواي فاي",
+                                tint = if (networkStatus.is5GHz) Fast5GhzBadge else MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(28.dp)
                             )
-                            if (networkStatus.is5GHz) {
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Fast5GhzBadge)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Bolt,
-                                            contentDescription = "5GHz High Speed",
-                                            tint = Color.Black,
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                        Text(
-                                            text = "5GHz فائقة السرعة",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black,
-                                            fontSize = 10.sp
-                                        )
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = networkStatus.ssid,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                if (networkStatus.is5GHz) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Fast5GhzBadge)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Default.Bolt,
+                                                contentDescription = "5GHz High Speed",
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                            Text(
+                                                text = "5GHz فائقة السرعة",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black,
+                                                fontSize = 10.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(if (networkStatus.isWifiConnected) SuccessGreen else Color.Gray)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "IP: ${networkStatus.ipAddress}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(if (networkStatus.isWifiConnected) SuccessGreen else Color.Gray)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "IP: ${networkStatus.ipAddress}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
+                    }
+
+                    IconButton(onClick = onRefresh) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "تحديث حالة الشبكة",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
 
-                IconButton(onClick = onRefresh) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "تحديث حالة الشبكة",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
+                if (!p2pStatusText.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CellTower,
+                                contentDescription = "Wi-Fi Direct P2P",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Wi-Fi Direct (P2P): $p2pStatusText",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
+

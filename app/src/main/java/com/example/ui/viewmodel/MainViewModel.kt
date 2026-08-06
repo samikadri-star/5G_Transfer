@@ -131,8 +131,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    var lastTargetDevice: DiscoveredDevice? = null
+        private set
+
     fun sendSelectedItemsTo(device: DiscoveredDevice) {
         if (_selectedItems.value.isEmpty()) return
+        lastTargetDevice = device
 
         transferEngine.sendItemsToDevice(
             targetIp = device.ipAddress,
@@ -155,6 +159,59 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         )
+    }
+
+    fun handleShareIntent(intent: android.content.Intent) {
+        val action = intent.action ?: return
+        val urisToProcess = mutableListOf<Uri>()
+
+        if (android.content.Intent.ACTION_SEND == action) {
+            val streamUri = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(android.content.Intent.EXTRA_STREAM)
+            }
+            if (streamUri != null) {
+                urisToProcess.add(streamUri)
+            } else if (intent.data != null) {
+                urisToProcess.add(intent.data!!)
+            } else {
+                intent.clipData?.let { clipData ->
+                    for (i in 0 until clipData.itemCount) {
+                        clipData.getItemAt(i).uri?.let { urisToProcess.add(it) }
+                    }
+                }
+            }
+        } else if (android.content.Intent.ACTION_SEND_MULTIPLE == action) {
+            val streamUris = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableArrayListExtra(android.content.Intent.EXTRA_STREAM)
+            }
+            if (streamUris != null) {
+                urisToProcess.addAll(streamUris)
+            } else {
+                intent.clipData?.let { clipData ->
+                    for (i in 0 until clipData.itemCount) {
+                        clipData.getItemAt(i).uri?.let { urisToProcess.add(it) }
+                    }
+                }
+            }
+        }
+
+        if (urisToProcess.isNotEmpty()) {
+            addSelectedFileUris(urisToProcess)
+            selectTab(MainTab.SEND)
+        }
+    }
+
+    fun retryLastTransfer() {
+        val device = lastTargetDevice
+        if (device != null && _selectedItems.value.isNotEmpty()) {
+            sendSelectedItemsTo(device)
+        }
     }
 
     fun addSelectedFileUris(uris: List<Uri>) {

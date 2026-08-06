@@ -321,38 +321,54 @@ class WifiTransferEngine(private val context: Context) {
 
                 if (isDir) {
                     createTargetDirectory(relativePath, customSaveUri)
+                    dataOut.writeLong(0L)
+                    dataOut.flush()
                 } else {
-                    val outputStream = createTargetFileStream(relativePath, customSaveUri)
-                    val buffer = ByteArray(BUFFER_SIZE)
-                    var remaining = fileSize
+                    val existingSize = getTargetFileExistingSize(relativePath, customSaveUri)
+                    val resumeOffset = if (existingSize in 1 until fileSize) existingSize else if (existingSize >= fileSize) fileSize else 0L
 
-                    while (remaining > 0) {
-                        val read = dataIn.read(buffer, 0, Math.min(buffer.size.toLong(), remaining).toInt())
-                        if (read == -1) break
-                        outputStream.write(buffer, 0, read)
-                        remaining -= read
-                        receivedBytesTotal += read
+                    dataOut.writeLong(resumeOffset)
+                    dataOut.flush()
 
-                        val now = System.currentTimeMillis()
-                        val diff = now - lastSpeedCalcTime
-                        if (diff >= 400) {
-                            val bytesDiff = receivedBytesTotal - lastSpeedBytes
-                            currentSpeedMBps = (bytesDiff.toDouble() / (1024 * 1024)) / (diff.toDouble() / 1000)
-                            lastSpeedCalcTime = now
-                            lastSpeedBytes = receivedBytesTotal
+                    if (resumeOffset >= fileSize) {
+                        receivedBytesTotal += fileSize
+                        _transferProgress.value = _transferProgress.value.copy(
+                            bytesTransferred = receivedBytesTotal
+                        )
+                    } else {
+                        receivedBytesTotal += resumeOffset
+                        val outputStream = createTargetFileStream(relativePath, customSaveUri, append = resumeOffset > 0)
+                        val buffer = ByteArray(BUFFER_SIZE)
+                        var remaining = fileSize - resumeOffset
 
-                            val remainingBytes = totalBatchBytes - receivedBytesTotal
-                            val etaSec = if (currentSpeedMBps > 0) (remainingBytes / (currentSpeedMBps * 1024 * 1024)).toLong() else 0
+                        while (remaining > 0) {
+                            val read = dataIn.read(buffer, 0, Math.min(buffer.size.toLong(), remaining).toInt())
+                            if (read == -1) break
+                            outputStream.write(buffer, 0, read)
+                            remaining -= read
+                            receivedBytesTotal += read
 
-                            _transferProgress.value = _transferProgress.value.copy(
-                                bytesTransferred = receivedBytesTotal,
-                                currentSpeedMBps = currentSpeedMBps,
-                                estimatedTimeRemainingSec = etaSec
-                            )
+                            val now = System.currentTimeMillis()
+                            val diff = now - lastSpeedCalcTime
+                            if (diff >= 400) {
+                                val bytesDiff = receivedBytesTotal - lastSpeedBytes
+                                currentSpeedMBps = (bytesDiff.toDouble() / (1024 * 1024)) / (diff.toDouble() / 1000)
+                                lastSpeedCalcTime = now
+                                lastSpeedBytes = receivedBytesTotal
+
+                                val remainingBytes = totalBatchBytes - receivedBytesTotal
+                                val etaSec = if (currentSpeedMBps > 0) (remainingBytes / (currentSpeedMBps * 1024 * 1024)).toLong() else 0
+
+                                _transferProgress.value = _transferProgress.value.copy(
+                                    bytesTransferred = receivedBytesTotal,
+                                    currentSpeedMBps = currentSpeedMBps,
+                                    estimatedTimeRemainingSec = etaSec
+                                )
+                            }
                         }
+                        outputStream.flush()
+                        outputStream.close()
                     }
-                    outputStream.flush()
-                    outputStream.close()
                 }
 
                 filesReceived++
@@ -424,7 +440,37 @@ class WifiTransferEngine(private val context: Context) {
         if (!targetDir.exists()) targetDir.mkdirs()
     }
 
-    private fun createTargetFileStream(relativePath: String, customSaveUri: String?): OutputStream {
+    private fun getTargetFileExistingSize(relativePath: String, customSaveUri: String?): Long {
+        if (customSaveUri != null) {
+            try {
+                val treeUri = Uri.parse(customSaveUri)
+                val rootDoc = DocumentFile.fromTreeUri(context, treeUri)
+                if (rootDoc != null) {
+                    val parts = relativePath.split("/")
+                    var currentDoc: DocumentFile = rootDoc
+                    for (i in 0 until parts.size - 1) {
+                        val part = parts[i]
+                        if (part.isNotEmpty()) {
+                            val existing = currentDoc.findFile(part) ?: break
+                            currentDoc = existing
+                        }
+                    }
+                    val fileName = parts.last()
+                    val existingFile = currentDoc.findFile(fileName)
+                    if (existingFile != null && existingFile.exists()) {
+                        return existingFile.length()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        val targetFile = File(getDownloadsDir(), relativePath)
+        return if (targetFile.exists()) targetFile.length() else 0L
+    }
+
+    private fun createTargetFileStream(relativePath: String, customSaveUri: String?, append: Boolean = false): OutputStream {
         if (customSaveUri != null) {
             try {
                 val treeUri = Uri.parse(customSaveUri)
@@ -444,10 +490,20 @@ class WifiTransferEngine(private val context: Context) {
                     }
                     val fileName = parts.last()
                     val existingFile = currentDoc.findFile(fileName)
-                    existingFile?.delete()
-                    val newFile = currentDoc.createFile("*/*", fileName)
-                    if (newFile != null) {
-                        val pfd = context.contentResolver.openOutputStream(newFile.uri)
+                    val targetDoc = if (existingFile != null) {
+                        if (!append) {
+                            existingFile.delete()
+                            currentDoc.createFile("*/*", fileName)
+                        } else {
+                            existingFile
+                        }
+                    } else {
+                        currentDoc.createFile("*/*", fileName)
+                    }
+
+                    if (targetDoc != null) {
+                        val mode = if (append) "wa" else "w"
+                        val pfd = context.contentResolver.openOutputStream(targetDoc.uri, mode)
                         if (pfd != null) return BufferedOutputStream(pfd, BUFFER_SIZE)
                     }
                 }
@@ -459,8 +515,10 @@ class WifiTransferEngine(private val context: Context) {
         // Fallback file output stream
         val targetFile = File(getDownloadsDir(), relativePath)
         targetFile.parentFile?.mkdirs()
-        if (targetFile.exists()) targetFile.delete()
-        return BufferedOutputStream(FileOutputStream(targetFile), BUFFER_SIZE)
+        if (!append && targetFile.exists()) {
+            targetFile.delete()
+        }
+        return BufferedOutputStream(FileOutputStream(targetFile, append), BUFFER_SIZE)
     }
 
     // --- Sender Engine ---
@@ -530,37 +588,57 @@ class WifiTransferEngine(private val context: Context) {
                     dataOut.writeBoolean(item.isDirectory)
                     dataOut.flush()
 
+                    val resumeOffset = dataIn.readLong()
+
                     if (!item.isDirectory) {
-                        val inputStream = context.contentResolver.openInputStream(item.uri)
-                            ?: throw Exception("تعذر فتح الملف: ${item.name}")
-                        val bufferedIn = BufferedInputStream(inputStream, BUFFER_SIZE)
-                        val buffer = ByteArray(BUFFER_SIZE)
-                        var read: Int
+                        if (resumeOffset >= item.size) {
+                            bytesSentTotal += item.size
+                            _transferProgress.value = _transferProgress.value.copy(
+                                bytesTransferred = bytesSentTotal
+                            )
+                        } else {
+                            bytesSentTotal += resumeOffset
+                            val inputStream = context.contentResolver.openInputStream(item.uri)
+                                ?: throw Exception("تعذر فتح الملف: ${item.name}")
+                            val bufferedIn = BufferedInputStream(inputStream, BUFFER_SIZE)
 
-                        while (bufferedIn.read(buffer).also { read = it } != -1) {
-                            dataOut.write(buffer, 0, read)
-                            bytesSentTotal += read
-
-                            val now = System.currentTimeMillis()
-                            val diff = now - lastSpeedCalcTime
-                            if (diff >= 400) {
-                                val bytesDiff = bytesSentTotal - lastSpeedBytes
-                                currentSpeedMBps = (bytesDiff.toDouble() / (1024 * 1024)) / (diff.toDouble() / 1000)
-                                lastSpeedCalcTime = now
-                                lastSpeedBytes = bytesSentTotal
-
-                                val remainingBytes = totalBytes - bytesSentTotal
-                                val etaSec = if (currentSpeedMBps > 0) (remainingBytes / (currentSpeedMBps * 1024 * 1024)).toLong() else 0
-
-                                _transferProgress.value = _transferProgress.value.copy(
-                                    bytesTransferred = bytesSentTotal,
-                                    currentSpeedMBps = currentSpeedMBps,
-                                    estimatedTimeRemainingSec = etaSec
-                                )
+                            if (resumeOffset > 0) {
+                                var skipped = 0L
+                                while (skipped < resumeOffset) {
+                                    val s = bufferedIn.skip(resumeOffset - skipped)
+                                    if (s <= 0) break
+                                    skipped += s
+                                }
                             }
+
+                            val buffer = ByteArray(BUFFER_SIZE)
+                            var read: Int
+
+                            while (bufferedIn.read(buffer).also { read = it } != -1) {
+                                dataOut.write(buffer, 0, read)
+                                bytesSentTotal += read
+
+                                val now = System.currentTimeMillis()
+                                val diff = now - lastSpeedCalcTime
+                                if (diff >= 400) {
+                                    val bytesDiff = bytesSentTotal - lastSpeedBytes
+                                    currentSpeedMBps = (bytesDiff.toDouble() / (1024 * 1024)) / (diff.toDouble() / 1000)
+                                    lastSpeedCalcTime = now
+                                    lastSpeedBytes = bytesSentTotal
+
+                                    val remainingBytes = totalBytes - bytesSentTotal
+                                    val etaSec = if (currentSpeedMBps > 0) (remainingBytes / (currentSpeedMBps * 1024 * 1024)).toLong() else 0
+
+                                    _transferProgress.value = _transferProgress.value.copy(
+                                        bytesTransferred = bytesSentTotal,
+                                        currentSpeedMBps = currentSpeedMBps,
+                                        estimatedTimeRemainingSec = etaSec
+                                    )
+                                }
+                            }
+                            bufferedIn.close()
+                            dataOut.flush()
                         }
-                        bufferedIn.close()
-                        dataOut.flush()
                     }
                 }
 

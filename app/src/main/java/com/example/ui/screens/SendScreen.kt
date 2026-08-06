@@ -151,6 +151,7 @@ fun SendScreen(
             TransferProgressCard(
                 progress = transferProgress,
                 onReset = { viewModel.resetTransfer() },
+                onRetry = { viewModel.retryLastTransfer() },
                 formatBytes = { viewModel.formatBytes(it) }
             )
         }

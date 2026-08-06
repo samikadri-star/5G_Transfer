@@ -46,6 +46,7 @@ fun TransferProgressCard(
     progress: TransferProgress,
     onReset: () -> Unit,
     formatBytes: (Long) -> String,
+    onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (progress.state == TransferState.IDLE || progress.state == TransferState.SCANNING) return
@@ -205,7 +206,31 @@ fun TransferProgressCard(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            if (progress.state == TransferState.COMPLETED || progress.state == TransferState.FAILED) {
+            if (progress.state == TransferState.FAILED && onRetry != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onRetry,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("استكمال / إعادة المحاولة ⚡", fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onReset,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("إغلاق", fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else if (progress.state == TransferState.COMPLETED || progress.state == TransferState.FAILED) {
                 Button(
                     onClick = onReset,
                     modifier = Modifier.fillMaxWidth(),

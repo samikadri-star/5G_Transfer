@@ -43,6 +43,8 @@ import com.example.ui.viewmodel.MainViewModel
 
 class MainActivity : ComponentActivity() {
 
+    private var mainViewModel: MainViewModel? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -50,7 +52,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             FlashShareTheme {
                 val viewModel: MainViewModel = viewModel()
+                mainViewModel = viewModel
                 val currentTab by viewModel.currentTab.collectAsState()
+
+                LaunchedEffect(intent) {
+                    intent?.let { viewModel.handleShareIntent(it) }
+                }
 
                 val permissionLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -135,5 +142,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        mainViewModel?.handleShareIntent(intent)
     }
 }
